@@ -1,2 +1,2 @@
 # pptgeneration
-First projecti would work on(long term)
+First project would work on(long term)
