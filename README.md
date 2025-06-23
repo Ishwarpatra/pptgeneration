@@ -26,3 +26,15 @@ python backend/app.py
 5. Open `http://localhost:5000` in your browser to register and start creating presentations.
 
 Generated presentations are saved in the `presentations/` directory.
+
+## Replicating Existing Presentations
+
+The `ppt_tools.py` script analyzes one or more reference `.pptx` files and creates a new presentation with the same text content. Basic font and color information is gathered during analysis. Optionally, short headline suggestions can be generated using OpenAI.
+
+Example usage:
+
+```bash
+python ppt_tools.py reference1.pptx reference2.pptx -o output.pptx --suggest
+```
+
+This saves a new presentation to `output.pptx` and prints any AI generated suggestions to the console.
