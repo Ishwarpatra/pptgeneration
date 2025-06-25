@@ -26,3 +26,7 @@ python backend/app.py
 5. Open `http://localhost:5000` in your browser to register and start creating presentations.
 
 Generated presentations are saved in the `presentations/` directory.
+
+## Technology Stack
+
+For a detailed overview of the libraries and frameworks used in this project, see [TECH_STACK.md](TECH_STACK.md).
