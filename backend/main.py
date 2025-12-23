@@ -9,8 +9,6 @@ from services.nlp.routes import router as nlp_router
 from services.nlp.analyze_routes import router as analyze_router
 from services.style.routes import router as style_router
 from services.layout.routes import router as generation_router
-from services.visual.routes import router as visual_router
-from services.render3d.routes import router as render3d_router
 
 app = FastAPI(
     title="AI Presentation Generator",
@@ -32,22 +30,18 @@ app.include_router(nlp_router)
 app.include_router(analyze_router)
 app.include_router(style_router)
 app.include_router(generation_router)
-app.include_router(visual_router)
-app.include_router(render3d_router)
 
 
 @app.get("/")
 def read_root():
     return {
         "status": "System Online",
-        "phase": "6 - Visual & 3D Services Active",
+        "phase": "5 - Reference Analysis Active",
         "endpoints": {
             "nlp": "/api/nlp",
             "analyze": "/api/analyze",
             "style": "/api/style",
             "generate": "/api/generate",
-            "visual": "/api/visual",
-            "render3d": "/api/render3d",
             "docs": "/docs"
         }
     }
@@ -63,9 +57,7 @@ def health_check():
             "nlp": "online",
             "reference_analysis": "online",
             "style_engine": "online",
-            "generation": "online",
-            "visual_synthesis": "online",
-            "render3d": "online"
+            "generation": "online"
         }
     }
 
