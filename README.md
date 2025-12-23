@@ -1,28 +1,75 @@
-# PPT Generation App
+# AI Presentation Generator
 
-This project provides a minimal web application for creating PowerPoint presentations using OpenAI's API.
-It includes a simple Flask back end with user authentication and a basic HTML front end.
+An AI-powered presentation generation system with Gamma-style UI and Artbreeder-inspired visual synthesis.
 
-## Setup
+## Features
 
-1. Create and activate a virtual environment (optional).
-2. Install dependencies:
+- **NLP Content Expansion** - LLM-powered outline generation with structured output
+- **Style Gene Engine** - Artbreeder-style theme breeding with LAB color interpolation
+- **Reference Analysis** - Extract styles from existing PPT files
+- **PPTX Compilation** - End-to-end PowerPoint generation with style application
 
-```bash
-pip install -r backend/requirements.txt
-```
+## Quick Start
 
-3. Set environment variables:
-
-- `OPENAI_API_KEY` – your OpenAI key
-- `SECRET_KEY` – secret string for Flask sessions
-
-4. Run the server:
+### 1. Start Docker Services
 
 ```bash
-python backend/app.py
+docker-compose up -d
 ```
 
-5. Open `http://localhost:5000` in your browser to register and start creating presentations.
+### 2. Backend Setup
 
-Generated presentations are saved in the `presentations/` directory.
+```bash
+cd backend
+python -m venv venv
+.\venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+```
+
+### 3. Configure Environment
+
+Create `backend/.env`:
+```
+DATABASE_URL=postgresql://user:password@localhost:5432/pptgen_db
+MONGO_URL=mongodb://localhost:27017
+REDIS_URL=redis://localhost:6379
+OPENAI_API_KEY=your-openai-api-key-here
+```
+
+### 4. Run the Server
+
+```bash
+cd backend
+.\venv\Scripts\activate
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+### 5. Access the API
+
+- **Swagger UI**: http://localhost:8000/docs
+- **Health Check**: http://localhost:8000/health
+
+## API Endpoints
+
+| Service | Endpoint | Description |
+|---------|----------|-------------|
+| NLP | `/api/nlp/expand` | Expand topic to structured outline |
+| Analysis | `/api/analyze/upload` | Extract style from reference PPT |
+| Style | `/api/style/presets` | List style presets |
+| Style | `/api/style/breed` | Mix two styles |
+| Generate | `/api/generate/presentation` | Full end-to-end generation |
+
+## Project Structure
+
+```
+pptgeneration/
+├── backend/
+│   ├── main.py              # FastAPI entry point
+│   ├── database.py          # PostgreSQL connection
+│   └── services/
+│       ├── nlp/             # Content expansion & analysis
+│       ├── style/           # Style Gene engine
+│       └── layout/          # PPTX compiler
+├── docker-compose.yml       # Database services
+└── frontend/                # (Coming soon)
+```
