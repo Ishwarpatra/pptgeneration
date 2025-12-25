@@ -126,7 +126,7 @@ function App() {
     // Render different views based on currentView state
     if (currentView === 'editor') {
         return (
-            <div className="app">
+            <div className="app app-editor">
                 <div className="editor-top-bar">
                     <button className="btn btn-secondary" onClick={() => setCurrentView('dashboard')}>
                         <ArrowLeft size={16} />

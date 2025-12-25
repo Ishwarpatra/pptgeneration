@@ -284,51 +284,54 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 </div>
             </div>
 
-            {/* Slide Thumbnails */}
-            <div className="slide-thumbnails">
-                {slides.map((slide, index) => (
-                    <div
-                        key={slide.id}
-                        className={`slide-thumb ${index === currentSlideIndex ? 'active' : ''}`}
-                        onClick={() => setCurrentSlideIndex(index)}
-                    >
-                        <span className="thumb-number">{index + 1}</span>
-                        <div className="thumb-preview">
-                            {slide.blocks[0]?.content?.substring(0, 20) || 'Empty'}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Main Editor Area */}
-            <div className="editor-canvas">
-                <div className="slide-canvas">
-                    {currentSlide.blocks.map((block, index) => renderBlock(block, index))}
-
-                    {/* Add Block Button */}
-                    <div className="add-block-container">
-                        <button
-                            className="add-block-btn"
-                            onClick={() => setShowBlockMenu(!showBlockMenu)}
+            {/* Main Editor Container */}
+            <div className="editor-main">
+                {/* Slide Thumbnails */}
+                <div className="slide-thumbnails">
+                    {slides.map((slide, index) => (
+                        <div
+                            key={slide.id}
+                            className={`slide-thumb ${index === currentSlideIndex ? 'active' : ''}`}
+                            onClick={() => setCurrentSlideIndex(index)}
                         >
-                            <Plus size={20} />
-                            Add Block
-                        </button>
-
-                        {showBlockMenu && (
-                            <div className="block-menu">
-                                {BLOCK_TYPES.map(({ type, icon, label }) => (
-                                    <button
-                                        key={type}
-                                        className="block-menu-item"
-                                        onClick={() => addBlock(type)}
-                                    >
-                                        {icon}
-                                        <span>{label}</span>
-                                    </button>
-                                ))}
+                            <span className="thumb-number">{index + 1}</span>
+                            <div className="thumb-preview">
+                                {slide.blocks[0]?.content?.substring(0, 20) || 'Empty'}
                             </div>
-                        )}
+                        </div>
+                    ))}
+                </div>
+
+                {/* Main Editor Area */}
+                <div className="editor-canvas">
+                    <div className="slide-canvas">
+                        {currentSlide.blocks.map((block, index) => renderBlock(block, index))}
+
+                        {/* Add Block Button */}
+                        <div className="add-block-container">
+                            <button
+                                className="add-block-btn"
+                                onClick={() => setShowBlockMenu(!showBlockMenu)}
+                            >
+                                <Plus size={20} />
+                                Add Block
+                            </button>
+
+                            {showBlockMenu && (
+                                <div className="block-menu">
+                                    {BLOCK_TYPES.map(({ type, icon, label }) => (
+                                        <button
+                                            key={type}
+                                            className="block-menu-item"
+                                            onClick={() => addBlock(type)}
+                                        >
+                                            {icon}
+                                            <span>{label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
