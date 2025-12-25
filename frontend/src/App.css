@@ -461,3 +461,60 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* Editor Top Bar */
+.editor-top-bar {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.editor-top-bar .btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Card Edit Button */
+.card-thumbnail {
+    position: relative;
+}
+
+.card-edit-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.6);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s ease;
+}
+
+.presentation-card:hover .card-edit-btn {
+    opacity: 1;
+}
+
+.card-edit-btn:hover {
+    background: rgba(139, 92, 246, 0.8);
+    transform: scale(1.1);
+}
+
+/* Sidebar Button Styling */
+.sidebar-nav button.nav-item {
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
     Plus,
-    FileText,
     Search,
     Grid3X3,
     List,
@@ -16,9 +15,16 @@ import {
     Clock,
     User,
     Sparkles,
-    Download
+    Download,
+    ArrowLeft,
+    Edit
 } from 'lucide-react'
 import './App.css'
+import { BlockEditor } from './components/BlockEditor'
+import { TemplateLibrary } from './components/Templates'
+import type { Template } from './components/Templates'
+
+type AppView = 'dashboard' | 'editor' | 'templates';
 
 interface Presentation {
     id: string
@@ -44,13 +50,15 @@ const MOCK_PRESENTATIONS: Presentation[] = [
 function App() {
     const [presentations, setPresentations] = useState<Presentation[]>(MOCK_PRESENTATIONS)
     const [activeTab, setActiveTab] = useState('all')
-    const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+    const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
     const [searchQuery, setSearchQuery] = useState('')
     const [showCreateModal, setShowCreateModal] = useState(false)
     const [isGenerating, setIsGenerating] = useState(false)
     const [newTopic, setNewTopic] = useState('')
     const [numSlides, setNumSlides] = useState(5)
     const [selectedStyle, setSelectedStyle] = useState('modern_minimal')
+    const [currentView, setCurrentView] = useState<AppView>('dashboard')
+    const [editingPresentationId, setEditingPresentationId] = useState<string | null>(null)
 
     const filteredPresentations = presentations.filter(p =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -98,6 +106,57 @@ function App() {
         setIsGenerating(false)
     }
 
+    const handleTemplateSelect = (template: Template) => {
+        setSelectedStyle(template.styleId)
+        setCurrentView('dashboard')
+        setShowCreateModal(true)
+    }
+
+    const handleEditPresentation = (presId: string) => {
+        setEditingPresentationId(presId)
+        setCurrentView('editor')
+    }
+
+    const handleEditorSave = () => {
+        console.log('Saving presentation...')
+        setCurrentView('dashboard')
+        setEditingPresentationId(null)
+    }
+
+    // Render different views based on currentView state
+    if (currentView === 'editor') {
+        return (
+            <div className="app">
+                <div className="editor-top-bar">
+                    <button className="btn btn-secondary" onClick={() => setCurrentView('dashboard')}>
+                        <ArrowLeft size={16} />
+                        Back to Dashboard
+                    </button>
+                </div>
+                <BlockEditor
+                    onSave={handleEditorSave}
+                    onPreview={() => console.log('Preview mode')}
+                />
+            </div>
+        )
+    }
+
+    if (currentView === 'templates') {
+        return (
+            <div className="app">
+                <div className="editor-top-bar">
+                    <button className="btn btn-secondary" onClick={() => setCurrentView('dashboard')}>
+                        <ArrowLeft size={16} />
+                        Back to Dashboard
+                    </button>
+                </div>
+                <TemplateLibrary onSelect={handleTemplateSelect} />
+            </div>
+        )
+    }
+
+    // Default: Dashboard view
+
     return (
         <div className="app">
             {/* Sidebar */}
@@ -129,26 +188,26 @@ function App() {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <a href="#" className="nav-item">
+                    <button className="nav-item" onClick={() => setCurrentView('templates')}>
                         <Layout size={18} />
                         Templates
-                    </a>
-                    <a href="#" className="nav-item">
+                    </button>
+                    <button className="nav-item">
                         <Lightbulb size={18} />
                         Inspiration
-                    </a>
-                    <a href="#" className="nav-item">
+                    </button>
+                    <button className="nav-item">
                         <Palette size={18} />
                         Themes
-                    </a>
-                    <a href="#" className="nav-item">
+                    </button>
+                    <button className="nav-item">
                         <Type size={18} />
                         Custom fonts
-                    </a>
-                    <a href="#" className="nav-item">
+                    </button>
+                    <button className="nav-item">
                         <Trash2 size={18} />
                         Trash
-                    </a>
+                    </button>
                 </nav>
             </aside>
 
@@ -234,15 +293,15 @@ function App() {
 
                     <div className="view-toggle">
                         <button
-                            className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                            onClick={() => setViewMode('grid')}
+                            className={`view-btn ${viewType === 'grid' ? 'active' : ''}`}
+                            onClick={() => setViewType('grid')}
                         >
                             <Grid3X3 size={16} />
                             Grid
                         </button>
                         <button
-                            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-                            onClick={() => setViewMode('list')}
+                            className={`view-btn ${viewType === 'list' ? 'active' : ''}`}
+                            onClick={() => setViewType('list')}
                         >
                             <List size={16} />
                             List
@@ -251,11 +310,18 @@ function App() {
                 </div>
 
                 {/* Presentations Grid */}
-                <div className={`presentations-grid ${viewMode}`}>
+                <div className={`presentations-grid ${viewType}`}>
                     {filteredPresentations.map((pres) => (
                         <div key={pres.id} className="presentation-card card">
                             <div className="card-thumbnail">
                                 <span className="thumbnail-emoji">{pres.thumbnail}</span>
+                                <button
+                                    className="card-edit-btn"
+                                    onClick={() => handleEditPresentation(pres.id)}
+                                    title="Edit presentation"
+                                >
+                                    <Edit size={16} />
+                                </button>
                             </div>
                             <div className="card-content">
                                 <h3 className="card-title">{pres.title}</h3>

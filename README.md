@@ -2,14 +2,16 @@
 
 An AI-powered presentation generation system with Gamma-style UI and Artbreeder-inspired visual synthesis.
 
-## Features
+## ✨ Features
 
-- **NLP Content Expansion** - LLM-powered outline generation with structured output
-- **Style Gene Engine** - Artbreeder-style theme breeding with LAB color interpolation
-- **Reference Analysis** - Extract styles from existing PPT files
-- **PPTX Compilation** - End-to-end PowerPoint generation with style application
+- **🧠 NLP Content Expansion** - LLM-powered outline generation with structured output
+- **🎨 Style Gene Engine** - Artbreeder-style theme breeding with LAB color interpolation
+- **📊 Reference Analysis** - Extract styles from existing PPT files
+- **📄 PPTX Compilation** - End-to-end PowerPoint generation with style application
+- **🖥️ Gamma-Style UI** - Modern React frontend with block-based editing
+- **📚 Template Library** - Pre-built templates and style presets
 
-## Quick Start
+## 🚀 Quick Start
 
 ### 1. Start Docker Services
 
@@ -29,14 +31,14 @@ pip install -r requirements.txt
 ### 3. Configure Environment
 
 Create `backend/.env`:
-```
+```env
 DATABASE_URL=postgresql://user:password@localhost:5432/pptgen_db
 MONGO_URL=mongodb://localhost:27017
 REDIS_URL=redis://localhost:6379
 OPENAI_API_KEY=your-openai-api-key-here
 ```
 
-### 4. Run the Server
+### 4. Run the Backend
 
 ```bash
 cd backend
@@ -44,12 +46,21 @@ cd backend
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-### 5. Access the API
+### 5. Run the Frontend
 
-- **Swagger UI**: http://localhost:8000/docs
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 6. Access the Application
+
+- **Frontend UI**: http://localhost:5173
+- **Swagger API Docs**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/health
 
-## API Endpoints
+## 📡 API Endpoints
 
 | Service | Endpoint | Description |
 |---------|----------|-------------|
@@ -59,7 +70,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 | Style | `/api/style/breed` | Mix two styles |
 | Generate | `/api/generate/presentation` | Full end-to-end generation |
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 pptgeneration/
@@ -70,6 +81,20 @@ pptgeneration/
 │       ├── nlp/             # Content expansion & analysis
 │       ├── style/           # Style Gene engine
 │       └── layout/          # PPTX compiler
-├── docker-compose.yml       # Database services
-└── frontend/                # (Coming soon)
+├── frontend/
+│   ├── src/
+│   │   ├── App.tsx          # Main application
+│   │   ├── components/      # React components
+│   │   │   ├── BlockEditor/ # Block-based slide editor
+│   │   │   └── Templates/   # Template gallery
+│   │   └── index.css        # Global styles
+│   └── package.json
+└── docker-compose.yml       # Database services
 ```
+
+## 🛠️ Development Phases
+
+- [x] Phase 1-4: Core Backend Services
+- [x] Phase 5: Reference Analysis
+- [x] Phase 6: Frontend UI + Block Editor + Template Library
+- [ ] Phase 7: Visual Synthesis (AI Image Generation)
