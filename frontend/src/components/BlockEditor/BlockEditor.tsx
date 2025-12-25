@@ -13,9 +13,11 @@ import {
     ChevronLeft,
     ChevronRight,
     Save,
-    Eye
+    Eye,
+    Sparkles
 } from 'lucide-react';
 import type { Block, Slide, BlockType } from './types';
+import { ImageGenerator } from './ImageGenerator';
 import './BlockEditor.css';
 
 interface BlockEditorProps {
@@ -60,6 +62,8 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
     const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
     const [showBlockMenu, setShowBlockMenu] = useState(false);
     const [draggedBlockIndex, setDraggedBlockIndex] = useState<number | null>(null);
+    const [showImageGenerator, setShowImageGenerator] = useState(false);
+    const [activeImageBlockId, setActiveImageBlockId] = useState<string | null>(null);
 
     const currentSlide = slides[currentSlideIndex];
 
@@ -71,11 +75,42 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
 
     const addBlock = (type: BlockType) => {
         const newBlock = createBlock(type, type === 'divider' ? '' : 'New content...');
-        updateSlide({
-            ...currentSlide,
-            blocks: [...currentSlide.blocks, newBlock]
-        });
+
+        // If adding an image block, open the AI generator
+        if (type === 'image') {
+            updateSlide({
+                ...currentSlide,
+                blocks: [...currentSlide.blocks, newBlock]
+            });
+            setActiveImageBlockId(newBlock.id);
+            setShowImageGenerator(true);
+        } else {
+            updateSlide({
+                ...currentSlide,
+                blocks: [...currentSlide.blocks, newBlock]
+            });
+        }
         setShowBlockMenu(false);
+    };
+
+    const handleImageGenerated = (imageUrl: string) => {
+        if (activeImageBlockId) {
+            updateSlide({
+                ...currentSlide,
+                blocks: currentSlide.blocks.map(b =>
+                    b.id === activeImageBlockId
+                        ? { ...b, content: imageUrl, metadata: { ...b.metadata, imageUrl } }
+                        : b
+                )
+            });
+        }
+        setShowImageGenerator(false);
+        setActiveImageBlockId(null);
+    };
+
+    const openImageGenerator = (blockId: string) => {
+        setActiveImageBlockId(blockId);
+        setShowImageGenerator(true);
     };
 
     const updateBlock = (blockId: string, content: string) => {
@@ -133,6 +168,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
         const isDivider = block.type === 'divider';
         const isQuote = block.type === 'quote';
         const isCode = block.type === 'code';
+        const isImage = block.type === 'image';
 
         return (
             <div
@@ -150,6 +186,20 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 <div className="block-content">
                     {isDivider ? (
                         <hr className="block-divider" />
+                    ) : isImage ? (
+                        <div className="block-image">
+                            {block.metadata?.imageUrl ? (
+                                <img src={block.metadata.imageUrl} alt="Slide image" />
+                            ) : (
+                                <button
+                                    className="generate-image-btn"
+                                    onClick={() => openImageGenerator(block.id)}
+                                >
+                                    <Sparkles size={20} />
+                                    Generate AI Image
+                                </button>
+                            )}
+                        </div>
                     ) : isQuote ? (
                         <blockquote
                             contentEditable
@@ -282,6 +332,19 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* AI Image Generator Modal */}
+            {showImageGenerator && (
+                <ImageGenerator
+                    slideTitle={currentSlide.blocks.find(b => b.type === 'heading')?.content || 'Untitled'}
+                    slideContent={currentSlide.blocks.map(b => b.content).join(' ').substring(0, 200)}
+                    onImageGenerated={handleImageGenerated}
+                    onClose={() => {
+                        setShowImageGenerator(false);
+                        setActiveImageBlockId(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

@@ -9,11 +9,12 @@ from services.nlp.routes import router as nlp_router
 from services.nlp.analyze_routes import router as analyze_router
 from services.style.routes import router as style_router
 from services.layout.routes import router as generation_router
+from services.visual.routes import router as visual_router
 
 app = FastAPI(
     title="AI Presentation Generator",
-    description="AI-powered presentation generation system with Gamma-style UI",
-    version="1.0.0"
+    description="AI-powered presentation generation system with Gamma-style UI and Visual Synthesis",
+    version="1.1.0"
 )
 
 # CORS middleware for frontend
@@ -30,18 +31,20 @@ app.include_router(nlp_router)
 app.include_router(analyze_router)
 app.include_router(style_router)
 app.include_router(generation_router)
+app.include_router(visual_router)
 
 
 @app.get("/")
 def read_root():
     return {
         "status": "System Online",
-        "phase": "5 - Reference Analysis Active",
+        "phase": "6 - Visual Synthesis Active",
         "endpoints": {
             "nlp": "/api/nlp",
             "analyze": "/api/analyze",
             "style": "/api/style",
             "generate": "/api/generate",
+            "visual": "/api/visual",
             "docs": "/docs"
         }
     }
@@ -57,7 +60,8 @@ def health_check():
             "nlp": "online",
             "reference_analysis": "online",
             "style_engine": "online",
-            "generation": "online"
+            "generation": "online",
+            "visual_synthesis": "online"
         }
     }
 

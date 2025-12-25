@@ -10,6 +10,7 @@ An AI-powered presentation generation system with Gamma-style UI and Artbreeder-
 - **📄 PPTX Compilation** - End-to-end PowerPoint generation with style application
 - **🖥️ Gamma-Style UI** - Modern React frontend with block-based editing
 - **📚 Template Library** - Pre-built templates and style presets
+- **🖼️ Visual Synthesis** - AI image generation (DALL-E 3 / Stability AI) for slides
 
 ## 🚀 Quick Start
 
@@ -36,6 +37,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/pptgen_db
 MONGO_URL=mongodb://localhost:27017
 REDIS_URL=redis://localhost:6379
 OPENAI_API_KEY=your-openai-api-key-here
+STABILITY_API_KEY=your-stability-api-key-here  # Optional
 ```
 
 ### 4. Run the Backend
@@ -69,6 +71,9 @@ npm run dev
 | Style | `/api/style/presets` | List style presets |
 | Style | `/api/style/breed` | Mix two styles |
 | Generate | `/api/generate/presentation` | Full end-to-end generation |
+| Visual | `/api/visual/generate` | Generate AI images |
+| Visual | `/api/visual/suggest` | Get image suggestions for slides |
+| Visual | `/api/visual/styles` | List available image styles |
 
 ## 📁 Project Structure
 
@@ -80,12 +85,13 @@ pptgeneration/
 │   └── services/
 │       ├── nlp/             # Content expansion & analysis
 │       ├── style/           # Style Gene engine
-│       └── layout/          # PPTX compiler
+│       ├── layout/          # PPTX compiler
+│       └── visual/          # AI Image generation
 ├── frontend/
 │   ├── src/
 │   │   ├── App.tsx          # Main application
 │   │   ├── components/      # React components
-│   │   │   ├── BlockEditor/ # Block-based slide editor
+│   │   │   ├── BlockEditor/ # Block-based slide editor + Image Generator
 │   │   │   └── Templates/   # Template gallery
 │   │   └── index.css        # Global styles
 │   └── package.json
@@ -96,5 +102,5 @@ pptgeneration/
 
 - [x] Phase 1-4: Core Backend Services
 - [x] Phase 5: Reference Analysis
-- [x] Phase 6: Frontend UI + Block Editor + Template Library
-- [ ] Phase 7: Visual Synthesis (AI Image Generation)
+- [x] Phase 6: Frontend UI + Block Editor + Template Library + Visual Synthesis
+- [ ] Phase 7: Real-time Collaboration & Export Options
