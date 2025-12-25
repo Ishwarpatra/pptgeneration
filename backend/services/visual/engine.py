@@ -22,7 +22,7 @@ class VisualSynthesisEngine:
     AI Image Generation Engine for Presentation Slides
     
     Supports multiple providers:
-    - OpenAI DALL-E 3
+    - Google Gemini (Imagen)
     - Stability AI
     - Local placeholder generation (for development)
     """
@@ -41,21 +41,21 @@ class VisualSynthesisEngine:
     }
     
     ASPECT_DIMENSIONS = {
-        AspectRatio.WIDESCREEN: (1792, 1024),  # 16:9 equivalent for DALL-E
+        AspectRatio.WIDESCREEN: (1792, 1024),  # 16:9 equivalent
         AspectRatio.STANDARD: (1024, 768),      # 4:3
         AspectRatio.SQUARE: (1024, 1024),       # 1:1
         AspectRatio.PORTRAIT: (1024, 1792),     # 9:16
     }
     
     def __init__(self):
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
         self.stability_api_key = os.getenv("STABILITY_API_KEY")
         self.output_dir = Path("generated_images")
         self.output_dir.mkdir(exist_ok=True)
         
         # Select provider based on available API keys
-        if self.openai_api_key:
-            self.provider = "openai"
+        if self.gemini_api_key:
+            self.provider = "gemini"
         elif self.stability_api_key:
             self.provider = "stability"
         else:
@@ -94,8 +94,8 @@ class VisualSynthesisEngine:
         enhanced_prompt = self._enhance_prompt(request)
         
         try:
-            if self.provider == "openai":
-                return await self._generate_with_openai(request, enhanced_prompt)
+            if self.provider == "gemini":
+                return await self._generate_with_gemini(request, enhanced_prompt)
             elif self.provider == "stability":
                 return await self._generate_with_stability(request, enhanced_prompt)
             else:
@@ -109,59 +109,131 @@ class VisualSynthesisEngine:
                 credits_used=0
             )
     
-    async def _generate_with_openai(
+    async def _generate_with_gemini(
         self, 
         request: ImageGenerationRequest, 
         enhanced_prompt: str
     ) -> ImageGenerationResponse:
-        """Generate image using OpenAI DALL-E 3"""
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            # Map quality to DALL-E parameter
-            quality_map = {"draft": "standard", "standard": "standard", "high": "hd"}
-            dalle_quality = quality_map.get(request.quality, "standard")
+        """Generate image using Google Gemini (Imagen 3)"""
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            # Gemini Imagen API endpoint
+            # Using the Vertex AI / Gemini API for image generation
             
-            # DALL-E 3 only supports specific sizes
-            if request.aspect_ratio == AspectRatio.WIDESCREEN:
-                size = "1792x1024"
-            elif request.aspect_ratio == AspectRatio.PORTRAIT:
-                size = "1024x1792"
-            else:
-                size = "1024x1024"
+            # Map aspect ratio to Gemini format
+            aspect_ratio_map = {
+                AspectRatio.WIDESCREEN: "16:9",
+                AspectRatio.STANDARD: "4:3",
+                AspectRatio.SQUARE: "1:1",
+                AspectRatio.PORTRAIT: "9:16"
+            }
+            aspect_ratio = aspect_ratio_map.get(request.aspect_ratio, "16:9")
+            
+            # Use Gemini's generateContent with imagen model
+            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={self.gemini_api_key}"
+            
+            payload = {
+                "instances": [
+                    {
+                        "prompt": enhanced_prompt
+                    }
+                ],
+                "parameters": {
+                    "sampleCount": 1,
+                    "aspectRatio": aspect_ratio,
+                    "personGeneration": "allow_adult",
+                    "safetyFilterLevel": "block_few"
+                }
+            }
             
             response = await client.post(
-                "https://api.openai.com/v1/images/generations",
+                api_url,
                 headers={
-                    "Authorization": f"Bearer {self.openai_api_key}",
                     "Content-Type": "application/json"
                 },
-                json={
-                    "model": "dall-e-3",
-                    "prompt": enhanced_prompt,
-                    "n": 1,
-                    "size": size,
-                    "quality": dalle_quality,
-                    "response_format": "url"
-                }
+                json=payload
             )
             
             if response.status_code != 200:
-                error_data = response.json()
-                raise Exception(f"DALL-E API error: {error_data.get('error', {}).get('message', 'Unknown error')}")
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get('error', {}).get('message', response.text or 'Unknown error')
+                
+                # Try alternative Gemini endpoint
+                return await self._generate_with_gemini_alt(request, enhanced_prompt)
             
             data = response.json()
-            image_url = data["data"][0]["url"]
             
-            # Download and save locally
-            local_path = await self._download_image(image_url)
+            # Extract image from response
+            if "predictions" in data and len(data["predictions"]) > 0:
+                image_b64 = data["predictions"][0].get("bytesBase64Encoded")
+                if image_b64:
+                    local_path = self._save_base64_image(image_b64)
+                    
+                    return ImageGenerationResponse(
+                        success=True,
+                        image_path=str(local_path),
+                        prompt_used=enhanced_prompt,
+                        style=request.style,
+                        credits_used=1
+                    )
             
-            return ImageGenerationResponse(
-                success=True,
-                image_url=image_url,
-                image_path=str(local_path),
-                prompt_used=enhanced_prompt,
-                style=request.style,
-                credits_used=1 if request.quality != "high" else 2
+            raise Exception("No image generated in response")
+    
+    async def _generate_with_gemini_alt(
+        self,
+        request: ImageGenerationRequest,
+        enhanced_prompt: str
+    ) -> ImageGenerationResponse:
+        """Alternative Gemini image generation using gemini-2.0-flash with image output"""
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            # Use Gemini 2.0 Flash experimental with image generation
+            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key={self.gemini_api_key}"
+            
+            payload = {
+                "contents": [{
+                    "parts": [{
+                        "text": f"Generate an image of: {enhanced_prompt}"
+                    }]
+                }],
+                "generationConfig": {
+                    "responseModalities": ["TEXT", "IMAGE"]
+                }
+            }
+            
+            response = await client.post(
+                api_url,
+                headers={
+                    "Content-Type": "application/json"
+                },
+                json=payload
             )
+            
+            if response.status_code != 200:
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get('error', {}).get('message', response.text or 'Unknown error')
+                raise Exception(f"Gemini API error: {error_msg}")
+            
+            data = response.json()
+            
+            # Extract image from response
+            candidates = data.get("candidates", [])
+            if candidates:
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                for part in parts:
+                    if "inlineData" in part:
+                        image_b64 = part["inlineData"].get("data")
+                        if image_b64:
+                            local_path = self._save_base64_image(image_b64)
+                            
+                            return ImageGenerationResponse(
+                                success=True,
+                                image_path=str(local_path),
+                                prompt_used=enhanced_prompt,
+                                style=request.style,
+                                credits_used=1
+                            )
+            
+            raise Exception("No image generated - Gemini may not have image generation enabled for your API key")
     
     async def _generate_with_stability(
         self,
@@ -244,7 +316,7 @@ class VisualSynthesisEngine:
             <rect width="100%" height="100%" fill="url(#grad)"/>
             <text x="50%" y="45%" font-family="Arial, sans-serif" font-size="24" 
                   fill="{text_color}" text-anchor="middle" opacity="0.8">
-                🎨 AI Generated Image
+                AI Generated Image
             </text>
             <text x="50%" y="55%" font-family="Arial, sans-serif" font-size="14" 
                   fill="{text_color}" text-anchor="middle" opacity="0.6">
@@ -351,6 +423,36 @@ class VisualSynthesisEngine:
             suggestions=suggestions[:3],  # Top 3 suggestions
             recommended_count=1 if len(slide_content) < 100 else 2
         )
+    
+    def get_provider_info(self) -> Dict[str, Any]:
+        """Get information about the current provider"""
+        provider_details = {
+            "gemini": {
+                "name": "Google Gemini (Imagen)",
+                "quality": "High",
+                "speed": "Fast",
+                "cost": "Pay per image"
+            },
+            "stability": {
+                "name": "Stability AI (SDXL)",
+                "quality": "High",
+                "speed": "Medium",
+                "cost": "Pay per image"
+            },
+            "placeholder": {
+                "name": "Placeholder (Development)",
+                "quality": "N/A",
+                "speed": "Instant",
+                "cost": "Free"
+            }
+        }
+        
+        return {
+            "current_provider": self.provider,
+            "details": provider_details.get(self.provider, {}),
+            "available_styles": len(self.STYLE_PROMPTS),
+            "available_ratios": len(self.ASPECT_DIMENSIONS)
+        }
 
 
 # Singleton instance

@@ -55,7 +55,7 @@ async def generate_image(request: ImageGenerationRequest):
     Generate an AI image based on the provided prompt and style.
     
     Supports multiple providers:
-    - OpenAI DALL-E 3 (if OPENAI_API_KEY is set)
+    - Google Gemini (Imagen) (if GEMINI_API_KEY is set)
     - Stability AI (if STABILITY_API_KEY is set)
     - Placeholder (fallback for development)
     """
@@ -119,8 +119,8 @@ async def get_current_provider():
     engine = get_visual_engine()
     
     provider_info = {
-        "openai": {
-            "name": "OpenAI DALL-E 3",
+        "gemini": {
+            "name": "Google Gemini (Imagen)",
             "quality": "High",
             "speed": "Fast",
             "cost": "Pay per image"
