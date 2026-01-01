@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
     Plus,
     Type,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { Block, Slide, BlockType } from './types';
 import { ImageGenerator } from './ImageGenerator';
+import { usePresentation, createBlock, PresentationProvider } from './PresentationContext';
 import './BlockEditor.css';
 
 interface BlockEditorProps {
@@ -25,21 +26,6 @@ interface BlockEditorProps {
     onSave?: (slides: Slide[]) => void;
     onPreview?: (slides: Slide[]) => void;
 }
-
-const generateId = () => Math.random().toString(36).substr(2, 9);
-
-const createBlock = (type: BlockType, content: string = ''): Block => ({
-    id: generateId(),
-    type,
-    content,
-    metadata: type === 'heading' ? { level: 1 } : {}
-});
-
-const createSlide = (layout: Slide['layout'] = 'content'): Slide => ({
-    id: generateId(),
-    blocks: [createBlock('heading', 'New Slide')],
-    layout,
-});
 
 const BLOCK_TYPES: { type: BlockType; icon: React.ReactNode; label: string }[] = [
     { type: 'heading', icon: <Heading1 size={16} />, label: 'Heading' },
@@ -51,58 +37,52 @@ const BLOCK_TYPES: { type: BlockType; icon: React.ReactNode; label: string }[] =
     { type: 'divider', icon: <Minus size={16} />, label: 'Divider' },
 ];
 
-export const BlockEditor: React.FC<BlockEditorProps> = ({
-    initialSlides,
+/**
+ * Internal BlockEditor component that uses context.
+ */
+const BlockEditorInternal: React.FC<BlockEditorProps> = ({
     onSave,
     onPreview
 }) => {
-    const [slides, setSlides] = useState<Slide[]>(
-        initialSlides || [createSlide('title')]
-    );
-    const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+    const {
+        state,
+        currentSlide,
+        addSlide,
+        deleteSlide,
+        goToSlide,
+        nextSlide,
+        prevSlide,
+        addBlock,
+        updateBlock,
+        updateBlockMetadata,
+        deleteBlock,
+        reorderBlocks,
+        getSlides,
+    } = usePresentation();
+
+    const { slides, currentSlideIndex } = state;
+
     const [showBlockMenu, setShowBlockMenu] = useState(false);
     const [draggedBlockIndex, setDraggedBlockIndex] = useState<number | null>(null);
     const [showImageGenerator, setShowImageGenerator] = useState(false);
     const [activeImageBlockId, setActiveImageBlockId] = useState<string | null>(null);
 
-    const currentSlide = slides[currentSlideIndex];
-
-    const updateSlide = useCallback((updatedSlide: Slide) => {
-        setSlides(prev => prev.map((s, i) =>
-            i === currentSlideIndex ? updatedSlide : s
-        ));
-    }, [currentSlideIndex]);
-
-    const addBlock = (type: BlockType) => {
+    const handleAddBlock = (type: BlockType) => {
         const newBlock = createBlock(type, type === 'divider' ? '' : 'New content...');
+        addBlock(newBlock);
 
         // If adding an image block, open the AI generator
         if (type === 'image') {
-            updateSlide({
-                ...currentSlide,
-                blocks: [...currentSlide.blocks, newBlock]
-            });
             setActiveImageBlockId(newBlock.id);
             setShowImageGenerator(true);
-        } else {
-            updateSlide({
-                ...currentSlide,
-                blocks: [...currentSlide.blocks, newBlock]
-            });
         }
         setShowBlockMenu(false);
     };
 
     const handleImageGenerated = (imageUrl: string) => {
         if (activeImageBlockId) {
-            updateSlide({
-                ...currentSlide,
-                blocks: currentSlide.blocks.map(b =>
-                    b.id === activeImageBlockId
-                        ? { ...b, content: imageUrl, metadata: { ...b.metadata, imageUrl } }
-                        : b
-                )
-            });
+            updateBlock(activeImageBlockId, imageUrl);
+            updateBlockMetadata(activeImageBlockId, { imageUrl });
         }
         setShowImageGenerator(false);
         setActiveImageBlockId(null);
@@ -113,21 +93,12 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
         setShowImageGenerator(true);
     };
 
-    const updateBlock = (blockId: string, content: string) => {
-        updateSlide({
-            ...currentSlide,
-            blocks: currentSlide.blocks.map(b =>
-                b.id === blockId ? { ...b, content } : b
-            )
-        });
+    const handleUpdateBlock = (blockId: string, content: string) => {
+        updateBlock(blockId, content);
     };
 
-    const deleteBlock = (blockId: string) => {
-        if (currentSlide.blocks.length <= 1) return;
-        updateSlide({
-            ...currentSlide,
-            blocks: currentSlide.blocks.filter(b => b.id !== blockId)
-        });
+    const handleDeleteBlock = (blockId: string) => {
+        deleteBlock(blockId);
     };
 
     const handleDragStart = (index: number) => {
@@ -138,11 +109,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
         e.preventDefault();
         if (draggedBlockIndex === null || draggedBlockIndex === index) return;
 
-        const newBlocks = [...currentSlide.blocks];
-        const [draggedBlock] = newBlocks.splice(draggedBlockIndex, 1);
-        newBlocks.splice(index, 0, draggedBlock);
-
-        updateSlide({ ...currentSlide, blocks: newBlocks });
+        reorderBlocks(draggedBlockIndex, index);
         setDraggedBlockIndex(index);
     };
 
@@ -150,16 +117,20 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
         setDraggedBlockIndex(null);
     };
 
-    const addSlide = () => {
-        const newSlide = createSlide();
-        setSlides(prev => [...prev, newSlide]);
-        setCurrentSlideIndex(slides.length);
+    const handleAddSlide = () => {
+        addSlide();
     };
 
-    const deleteSlide = () => {
-        if (slides.length <= 1) return;
-        setSlides(prev => prev.filter((_, i) => i !== currentSlideIndex));
-        setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1));
+    const handleDeleteSlide = () => {
+        deleteSlide();
+    };
+
+    const handleSave = () => {
+        onSave?.(getSlides());
+    };
+
+    const handlePreview = () => {
+        onPreview?.(getSlides());
     };
 
     const renderBlock = (block: Block, index: number) => {
@@ -189,7 +160,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                     ) : isImage ? (
                         <div className="block-image">
                             {block.metadata?.imageUrl ? (
-                                <img src={block.metadata.imageUrl} alt="Slide image" />
+                                <img src={block.metadata.imageUrl as string} alt="Slide image" />
                             ) : (
                                 <button
                                     className="generate-image-btn"
@@ -205,7 +176,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             contentEditable
                             suppressContentEditableWarning
                             className="block-quote"
-                            onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || '')}
+                            onBlur={(e) => handleUpdateBlock(block.id, e.currentTarget.textContent || '')}
                         >
                             {block.content}
                         </blockquote>
@@ -214,7 +185,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             <code
                                 contentEditable
                                 suppressContentEditableWarning
-                                onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || '')}
+                                onBlur={(e) => handleUpdateBlock(block.id, e.currentTarget.textContent || '')}
                             >
                                 {block.content}
                             </code>
@@ -224,7 +195,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                             contentEditable
                             suppressContentEditableWarning
                             className={`block-editable ${isHeading ? 'heading' : ''} ${isBullet ? 'bullet' : ''}`}
-                            onBlur={(e) => updateBlock(block.id, e.currentTarget.textContent || '')}
+                            onBlur={(e) => handleUpdateBlock(block.id, e.currentTarget.textContent || '')}
                             data-placeholder={isBullet ? '• List item...' : 'Type something...'}
                         >
                             {isBullet ? `• ${block.content}` : block.content}
@@ -234,7 +205,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
 
                 <button
                     className="block-delete"
-                    onClick={() => deleteBlock(block.id)}
+                    onClick={() => handleDeleteBlock(block.id)}
                     title="Delete block"
                 >
                     <Trash2 size={14} />
@@ -243,13 +214,17 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
         );
     };
 
+    if (!currentSlide) {
+        return <div className="block-editor">Loading...</div>;
+    }
+
     return (
         <div className="block-editor">
             {/* Editor Header */}
             <div className="editor-header">
                 <div className="slide-nav">
                     <button
-                        onClick={() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))}
+                        onClick={prevSlide}
                         disabled={currentSlideIndex === 0}
                     >
                         <ChevronLeft size={18} />
@@ -258,7 +233,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         Slide {currentSlideIndex + 1} of {slides.length}
                     </span>
                     <button
-                        onClick={() => setCurrentSlideIndex(Math.min(slides.length - 1, currentSlideIndex + 1))}
+                        onClick={nextSlide}
                         disabled={currentSlideIndex === slides.length - 1}
                     >
                         <ChevronRight size={18} />
@@ -266,18 +241,18 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 </div>
 
                 <div className="editor-actions">
-                    <button className="btn-icon" onClick={addSlide} title="Add Slide">
+                    <button className="btn-icon" onClick={handleAddSlide} title="Add Slide">
                         <Plus size={18} />
                         Add Slide
                     </button>
-                    <button className="btn-icon danger" onClick={deleteSlide} title="Delete Slide">
+                    <button className="btn-icon danger" onClick={handleDeleteSlide} title="Delete Slide">
                         <Trash2 size={18} />
                     </button>
-                    <button className="btn-icon" onClick={() => onPreview?.(slides)} title="Preview">
+                    <button className="btn-icon" onClick={handlePreview} title="Preview">
                         <Eye size={18} />
                         Preview
                     </button>
-                    <button className="btn-primary" onClick={() => onSave?.(slides)}>
+                    <button className="btn-primary" onClick={handleSave}>
                         <Save size={18} />
                         Save
                     </button>
@@ -292,7 +267,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                         <div
                             key={slide.id}
                             className={`slide-thumb ${index === currentSlideIndex ? 'active' : ''}`}
-                            onClick={() => setCurrentSlideIndex(index)}
+                            onClick={() => goToSlide(index)}
                         >
                             <span className="thumb-number">{index + 1}</span>
                             <div className="thumb-preview">
@@ -323,7 +298,7 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                                         <button
                                             key={type}
                                             className="block-menu-item"
-                                            onClick={() => addBlock(type)}
+                                            onClick={() => handleAddBlock(type)}
                                         >
                                             {icon}
                                             <span>{label}</span>
@@ -349,6 +324,22 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
                 />
             )}
         </div>
+    );
+};
+
+/**
+ * BlockEditor component wrapped with PresentationProvider.
+ * This is the main export that should be used in the application.
+ */
+export const BlockEditor: React.FC<BlockEditorProps> = ({
+    initialSlides,
+    onSave,
+    onPreview
+}) => {
+    return (
+        <PresentationProvider initialSlides={initialSlides}>
+            <BlockEditorInternal onSave={onSave} onPreview={onPreview} />
+        </PresentationProvider>
     );
 };
 

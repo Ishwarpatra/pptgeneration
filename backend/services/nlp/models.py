@@ -47,6 +47,14 @@ class VisualSpec(BaseModel):
         default="",
         description="Descriptive prompt for image/3D generation"
     )
+    image_path: Optional[str] = Field(
+        default=None,
+        description="Path to the generated image file (set after generation)"
+    )
+    image_url: Optional[str] = Field(
+        default=None,
+        description="URL to the generated image (for remote assets)"
+    )
     chart_data: Optional[ChartData] = Field(
         default=None,
         description="Data for chart generation, if applicable"

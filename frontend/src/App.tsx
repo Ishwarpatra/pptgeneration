@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { BrowserRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom'
 import {
     Plus,
     Search,
@@ -17,148 +18,173 @@ import {
     Sparkles,
     Download,
     ArrowLeft,
-    Edit
+    Edit,
+    Info
 } from 'lucide-react'
 import './App.css'
 import { BlockEditor } from './components/BlockEditor'
 import { TemplateLibrary } from './components/Templates'
 import type { Template } from './components/Templates'
+import { presentationsApi, type Presentation, type CreatePresentationResponse } from './services/presentationsApi'
+import { API_BASE_URL } from './config/api'
 
-type AppView = 'dashboard' | 'editor' | 'templates';
+type TabType = 'all' | 'recent' | 'created' | 'favorites';
 
-interface Presentation {
-    id: string
-    title: string
-    thumbnail: string
-    createdAt: string
-    isPrivate: boolean
-    author: string
+// Toast notification component
+interface ToastProps {
+    message: string;
+    type: 'info' | 'success' | 'error';
+    onClose: () => void;
 }
 
-// Mock data for presentations
-const MOCK_PRESENTATIONS: Presentation[] = [
-    { id: '1', title: 'EYRA: Accessible Education for the Visually...', thumbnail: '🎓', createdAt: '2 months ago', isPrivate: true, author: 'you' },
-    { id: '2', title: 'Smart Inventory Solutions', thumbnail: '📦', createdAt: '4 months ago', isPrivate: false, author: 'you' },
-    { id: '3', title: 'AR/VR in Education: Immersive Learning...', thumbnail: '🥽', createdAt: '7 months ago', isPrivate: true, author: 'you' },
-    { id: '4', title: 'A Balanced Approach to Packaging: Innovation...', thumbnail: '📊', createdAt: '7 months ago', isPrivate: true, author: 'you' },
-    { id: '5', title: 'The Immersive Revolution: AR and VR in Learning', thumbnail: '🌐', createdAt: '7 months ago', isPrivate: true, author: 'you' },
-    { id: '6', title: 'Why Hurry and Worry?', thumbnail: '🧘', createdAt: '2 years ago', isPrivate: true, author: 'you' },
-    { id: '7', title: 'Mastering the Basics: A Quiz on AI for Beginners', thumbnail: '🤖', createdAt: '2 years ago', isPrivate: true, author: 'you' },
-    { id: '8', title: 'Quiz on AI', thumbnail: '❓', createdAt: '2 years ago', isPrivate: true, author: 'you' },
-]
+const Toast: React.FC<ToastProps> = ({ message, type, onClose }) => {
+    useEffect(() => {
+        const timer = setTimeout(onClose, 3000);
+        return () => clearTimeout(timer);
+    }, [onClose]);
 
-function App() {
-    const [presentations, setPresentations] = useState<Presentation[]>(MOCK_PRESENTATIONS)
-    const [activeTab, setActiveTab] = useState('all')
-    const [viewType, setViewType] = useState<'grid' | 'list'>('grid')
-    const [searchQuery, setSearchQuery] = useState('')
-    const [showCreateModal, setShowCreateModal] = useState(false)
-    const [isGenerating, setIsGenerating] = useState(false)
-    const [newTopic, setNewTopic] = useState('')
-    const [numSlides, setNumSlides] = useState(5)
-    const [selectedStyle, setSelectedStyle] = useState('modern_minimal')
-    const [currentView, setCurrentView] = useState<AppView>('dashboard')
-    const [editingPresentationId, setEditingPresentationId] = useState<string | null>(null)
+    return (
+        <div className={`toast toast-${type}`}>
+            <Info size={16} />
+            {message}
+        </div>
+    );
+};
 
-    const filteredPresentations = presentations.filter(p =>
-        p.title.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+// Dashboard Component
+const Dashboard: React.FC = () => {
+    const navigate = useNavigate();
+    const [presentations, setPresentations] = useState<Presentation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<TabType>('all');
+    const [viewType, setViewType] = useState<'grid' | 'list'>('grid');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [newTopic, setNewTopic] = useState('');
+    const [numSlides, setNumSlides] = useState(5);
+    const [selectedStyle, setSelectedStyle] = useState('modern_minimal');
+    const [toast, setToast] = useState<{ message: string; type: 'info' | 'success' | 'error' } | null>(null);
+
+    // Fetch presentations on mount
+    useEffect(() => {
+        const fetchPresentations = async () => {
+            setIsLoading(true);
+            try {
+                const data = await presentationsApi.list();
+                setPresentations(data);
+            } catch (error) {
+                console.error('Failed to fetch presentations:', error);
+                setToast({ message: 'Could not load presentations. Backend may be offline.', type: 'error' });
+            }
+            setIsLoading(false);
+        };
+
+        fetchPresentations();
+    }, []);
+
+    // Filter presentations based on search AND active tab
+    const filteredPresentations = presentations.filter(p => {
+        // Search filter
+        const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase());
+
+        // Tab filter
+        let matchesTab = true;
+        switch (activeTab) {
+            case 'all':
+                matchesTab = true;
+                break;
+            case 'recent':
+                // Show items viewed/modified in last 7 days
+                const recentDate = new Date();
+                recentDate.setDate(recentDate.getDate() - 7);
+                matchesTab = new Date(p.updatedAt || p.createdAt) >= recentDate;
+                break;
+            case 'created':
+                matchesTab = p.author === 'you';
+                break;
+            case 'favorites':
+                matchesTab = p.isFavorite === true;
+                break;
+        }
+
+        return matchesSearch && matchesTab;
+    });
 
     const handleCreateNew = async () => {
-        if (!newTopic.trim()) return
+        if (!newTopic.trim()) return;
 
-        setIsGenerating(true)
+        setIsGenerating(true);
         try {
-            const response = await fetch('http://localhost:8000/api/generate/presentation', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    topic: newTopic,
-                    num_slides: numSlides,
-                    style_id: selectedStyle,
-                }),
-            })
+            const result: CreatePresentationResponse = await presentationsApi.generate({
+                topic: newTopic,
+                num_slides: numSlides,
+                style_id: selectedStyle,
+            });
 
-            const data = await response.json()
-
-            if (data.success) {
+            if (result.success) {
                 // Add to presentations list
                 const newPres: Presentation = {
-                    id: Date.now().toString(),
+                    id: result.presentation_id,
                     title: newTopic,
                     thumbnail: '✨',
-                    createdAt: 'Just now',
+                    createdAt: new Date().toISOString(),
                     isPrivate: true,
                     author: 'you',
-                }
-                setPresentations([newPres, ...presentations])
-                setShowCreateModal(false)
-                setNewTopic('')
+                    isFavorite: false,
+                    slideCount: result.slide_count,
+                };
+                setPresentations(prev => [newPres, ...prev]);
+                setShowCreateModal(false);
+                setNewTopic('');
+                setToast({ message: 'Presentation generated successfully!', type: 'success' });
 
                 // Download the file
-                if (data.download_url) {
-                    window.open(`http://localhost:8000${data.download_url}`, '_blank')
+                if (result.download_url) {
+                    window.open(`${API_BASE_URL}${result.download_url}`, '_blank');
                 }
             }
         } catch (error) {
-            console.error('Generation failed:', error)
+            console.error('Generation failed:', error);
+            setToast({ message: 'Generation failed. Please try again.', type: 'error' });
         }
-        setIsGenerating(false)
-    }
+        setIsGenerating(false);
+    };
 
-    const handleTemplateSelect = (template: Template) => {
-        setSelectedStyle(template.styleId)
-        setCurrentView('dashboard')
-        setShowCreateModal(true)
-    }
+    const handleToggleFavorite = async (id: string, currentFavorite: boolean) => {
+        try {
+            await presentationsApi.toggleFavorite(id, !currentFavorite);
+            setPresentations(prev =>
+                prev.map(p => p.id === id ? { ...p, isFavorite: !currentFavorite } : p)
+            );
+        } catch (error) {
+            console.error('Failed to toggle favorite:', error);
+            // Optimistically update UI even if API fails
+            setPresentations(prev =>
+                prev.map(p => p.id === id ? { ...p, isFavorite: !currentFavorite } : p)
+            );
+        }
+    };
 
     const handleEditPresentation = (presId: string) => {
-        setEditingPresentationId(presId)
-        setCurrentView('editor')
-    }
+        navigate(`/editor/${presId}`);
+    };
 
-    const handleEditorSave = () => {
-        console.log('Saving presentation...')
-        setCurrentView('dashboard')
-        setEditingPresentationId(null)
-    }
-
-    // Render different views based on currentView state
-    if (currentView === 'editor') {
-        return (
-            <div className="app app-editor">
-                <div className="editor-top-bar">
-                    <button className="btn btn-secondary" onClick={() => setCurrentView('dashboard')}>
-                        <ArrowLeft size={16} />
-                        Back to Dashboard
-                    </button>
-                </div>
-                <BlockEditor
-                    onSave={handleEditorSave}
-                    onPreview={() => console.log('Preview mode')}
-                />
-            </div>
-        )
-    }
-
-    if (currentView === 'templates') {
-        return (
-            <div className="app">
-                <div className="editor-top-bar">
-                    <button className="btn btn-secondary" onClick={() => setCurrentView('dashboard')}>
-                        <ArrowLeft size={16} />
-                        Back to Dashboard
-                    </button>
-                </div>
-                <TemplateLibrary onSelect={handleTemplateSelect} />
-            </div>
-        )
-    }
-
-    // Default: Dashboard view
+    const showComingSoon = (feature: string) => {
+        setToast({ message: `${feature} - Coming Soon!`, type: 'info' });
+    };
 
     return (
         <div className="app">
+            {/* Toast Notification */}
+            {toast && (
+                <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                />
+            )}
+
             {/* Sidebar */}
             <aside className="sidebar">
                 <div className="sidebar-header">
@@ -177,7 +203,7 @@ function App() {
                 </div>
 
                 <div className="sidebar-section">
-                    <div className="folder-item">
+                    <div className="folder-item" onClick={() => showComingSoon('Folders')}>
                         <Folder size={18} />
                         <div className="folder-info">
                             <span className="folder-title">Folders</span>
@@ -188,23 +214,23 @@ function App() {
                 </div>
 
                 <nav className="sidebar-nav">
-                    <button className="nav-item" onClick={() => setCurrentView('templates')}>
+                    <button className="nav-item" onClick={() => navigate('/templates')}>
                         <Layout size={18} />
                         Templates
                     </button>
-                    <button className="nav-item">
+                    <button className="nav-item disabled" onClick={() => showComingSoon('Inspiration')}>
                         <Lightbulb size={18} />
                         Inspiration
                     </button>
-                    <button className="nav-item">
+                    <button className="nav-item disabled" onClick={() => showComingSoon('Themes')}>
                         <Palette size={18} />
                         Themes
                     </button>
-                    <button className="nav-item">
+                    <button className="nav-item disabled" onClick={() => showComingSoon('Custom Fonts')}>
                         <Type size={18} />
                         Custom fonts
                     </button>
-                    <button className="nav-item">
+                    <button className="nav-item disabled" onClick={() => showComingSoon('Trash')}>
                         <Trash2 size={18} />
                         Trash
                     </button>
@@ -236,7 +262,7 @@ function App() {
                     <div className="toolbar-left">
                         <h1 className="page-title">
                             <Sparkles size={20} />
-                            Gammas
+                            Presentations
                         </h1>
 
                         <div className="toolbar-buttons">
@@ -245,12 +271,12 @@ function App() {
                                 Create new
                                 <span className="ai-badge">AI</span>
                             </button>
-                            <button className="btn btn-secondary">
+                            <button className="btn btn-secondary" onClick={() => showComingSoon('New from blank')}>
                                 <Plus size={16} />
                                 New from blank
                                 <ChevronDown size={14} />
                             </button>
-                            <button className="btn btn-secondary">
+                            <button className="btn btn-secondary" onClick={() => showComingSoon('Import')}>
                                 <Download size={16} />
                                 Import
                                 <ChevronDown size={14} />
@@ -309,35 +335,78 @@ function App() {
                     </div>
                 </div>
 
-                {/* Presentations Grid */}
-                <div className={`presentations-grid ${viewType}`}>
-                    {filteredPresentations.map((pres) => (
-                        <div key={pres.id} className="presentation-card card">
-                            <div className="card-thumbnail">
-                                <span className="thumbnail-emoji">{pres.thumbnail}</span>
-                                <button
-                                    className="card-edit-btn"
-                                    onClick={() => handleEditPresentation(pres.id)}
-                                    title="Edit presentation"
-                                >
-                                    <Edit size={16} />
-                                </button>
+                {/* Loading State */}
+                {isLoading ? (
+                    <div className="loading-state">
+                        <Sparkles size={32} className="spin" />
+                        <p>Loading presentations...</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* Empty State */}
+                        {filteredPresentations.length === 0 ? (
+                            <div className="empty-state">
+                                <Sparkles size={48} />
+                                <h3>
+                                    {presentations.length === 0
+                                        ? 'No presentations yet'
+                                        : 'No presentations match your filters'}
+                                </h3>
+                                <p>
+                                    {presentations.length === 0
+                                        ? 'Create your first AI-powered presentation!'
+                                        : 'Try adjusting your search or filters'}
+                                </p>
+                                {presentations.length === 0 && (
+                                    <button className="btn btn-primary" onClick={() => setShowCreateModal(true)}>
+                                        <Plus size={16} />
+                                        Create presentation
+                                    </button>
+                                )}
                             </div>
-                            <div className="card-content">
-                                <h3 className="card-title">{pres.title}</h3>
-                                <div className="card-meta">
-                                    <span className={`badge ${pres.isPrivate ? 'badge-private' : 'badge-public'}`}>
-                                        {pres.isPrivate ? '🔒 Private' : '🌐 Public'}
-                                    </span>
-                                </div>
-                                <div className="card-footer">
-                                    <span className="author">👤 Created by {pres.author}</span>
-                                    <span className="date">Last viewed {pres.createdAt}</span>
-                                </div>
+                        ) : (
+                            /* Presentations Grid */
+                            <div className={`presentations-grid ${viewType}`}>
+                                {filteredPresentations.map((pres) => (
+                                    <div key={pres.id} className="presentation-card card">
+                                        <div className="card-thumbnail">
+                                            <span className="thumbnail-emoji">{pres.thumbnail}</span>
+                                            <button
+                                                className={`card-favorite-btn ${pres.isFavorite ? 'active' : ''}`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleToggleFavorite(pres.id, pres.isFavorite);
+                                                }}
+                                                title={pres.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                                            >
+                                                <Star size={16} fill={pres.isFavorite ? 'currentColor' : 'none'} />
+                                            </button>
+                                            <button
+                                                className="card-edit-btn"
+                                                onClick={() => handleEditPresentation(pres.id)}
+                                                title="Edit presentation"
+                                            >
+                                                <Edit size={16} />
+                                            </button>
+                                        </div>
+                                        <div className="card-content">
+                                            <h3 className="card-title">{pres.title}</h3>
+                                            <div className="card-meta">
+                                                <span className={`badge ${pres.isPrivate ? 'badge-private' : 'badge-public'}`}>
+                                                    {pres.isPrivate ? '🔒 Private' : '🌐 Public'}
+                                                </span>
+                                            </div>
+                                            <div className="card-footer">
+                                                <span className="author">👤 Created by {pres.author}</span>
+                                                <span className="date">Last viewed {pres.createdAt}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        )}
+                    </>
+                )}
             </main>
 
             {/* Create Modal */}
@@ -397,7 +466,70 @@ function App() {
                 </div>
             )}
         </div>
-    )
+    );
+};
+
+// Editor Page Component
+const EditorPage: React.FC = () => {
+    const navigate = useNavigate();
+    const { id } = useParams<{ id: string }>();
+
+    const handleSave = useCallback(() => {
+        console.log('Saving presentation:', id);
+        navigate('/');
+    }, [id, navigate]);
+
+    return (
+        <div className="app app-editor">
+            <div className="editor-top-bar">
+                <button className="btn btn-secondary" onClick={() => navigate('/')}>
+                    <ArrowLeft size={16} />
+                    Back to Dashboard
+                </button>
+                <span className="editor-title">Editing: {id || 'New Presentation'}</span>
+            </div>
+            <BlockEditor
+                onSave={handleSave}
+                onPreview={() => console.log('Preview mode')}
+            />
+        </div>
+    );
+};
+
+// Templates Page Component
+const TemplatesPage: React.FC = () => {
+    const navigate = useNavigate();
+
+    const handleTemplateSelect = (template: Template) => {
+        // Navigate to dashboard with template pre-selected
+        navigate('/', { state: { selectedStyle: template.styleId, openModal: true } });
+    };
+
+    return (
+        <div className="app">
+            <div className="editor-top-bar">
+                <button className="btn btn-secondary" onClick={() => navigate('/')}>
+                    <ArrowLeft size={16} />
+                    Back to Dashboard
+                </button>
+            </div>
+            <TemplateLibrary onSelect={handleTemplateSelect} />
+        </div>
+    );
+};
+
+// Main App with Router
+function App() {
+    return (
+        <BrowserRouter>
+            <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/editor" element={<EditorPage />} />
+                <Route path="/editor/:id" element={<EditorPage />} />
+                <Route path="/templates" element={<TemplatesPage />} />
+            </Routes>
+        </BrowserRouter>
+    );
 }
 
 export default App

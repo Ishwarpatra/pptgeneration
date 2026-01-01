@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Search,
     Sparkles,
@@ -9,17 +9,19 @@ import {
     Minimize2,
     Megaphone,
     Crown,
-    Check
+    Check,
+    Loader2
 } from 'lucide-react';
 import type { Template, TemplateCategory } from './types';
+import { stylesApi, type StylePreset } from '../../services/presentationsApi';
 import './TemplateLibrary.css';
 
 interface TemplateLibraryProps {
     onSelect?: (template: Template) => void;
 }
 
-// Predefined templates
-const TEMPLATES: Template[] = [
+// Default templates for fallback when API is unavailable
+const DEFAULT_TEMPLATES: Template[] = [
     {
         id: 'modern_minimal',
         name: 'Modern Minimal',
@@ -86,73 +88,16 @@ const TEMPLATES: Template[] = [
         isPremium: false,
         colors: ['#f0fdf4', '#22c55e', '#166534']
     },
-    {
-        id: 'academic_focus',
-        name: 'Academic Focus',
-        description: 'Structured layouts perfect for educational content',
-        thumbnail: '📚',
-        category: 'education',
-        styleId: 'academic_focus',
-        slideCount: 16,
-        isPremium: false,
-        colors: ['#fefce8', '#eab308', '#1e3a8a']
-    },
-    {
-        id: 'pitch_deck_pro',
-        name: 'Pitch Deck Pro',
-        description: 'Investor-ready design with compelling data visualization',
-        thumbnail: '💼',
-        category: 'business',
-        styleId: 'pitch_deck_pro',
-        slideCount: 18,
-        isPremium: true,
-        colors: ['#18181b', '#fafafa', '#a855f7']
-    },
-    {
-        id: 'marketing_splash',
-        name: 'Marketing Splash',
-        description: 'Eye-catching layouts for marketing campaigns',
-        thumbnail: '📢',
-        category: 'marketing',
-        styleId: 'marketing_splash',
-        slideCount: 12,
-        isPremium: false,
-        colors: ['#fff1f2', '#fb7185', '#be123c']
-    },
-    {
-        id: 'gradient_dreams',
-        name: 'Gradient Dreams',
-        description: 'Smooth color transitions and modern aesthetics',
-        thumbnail: '🌈',
-        category: 'creative',
-        styleId: 'gradient_dreams',
-        slideCount: 10,
-        isPremium: true,
-        colors: ['#4f46e5', '#7c3aed', '#ec4899']
-    },
-    {
-        id: 'mono_elegance',
-        name: 'Mono Elegance',
-        description: 'Sophisticated black and white with accent colors',
-        thumbnail: '⚫',
-        category: 'minimal',
-        styleId: 'mono_elegance',
-        slideCount: 12,
-        isPremium: false,
-        colors: ['#000000', '#ffffff', '#737373']
-    },
-    {
-        id: 'edu_playful',
-        name: 'Educational Playful',
-        description: 'Fun and engaging design for interactive learning',
-        thumbnail: '🎓',
-        category: 'education',
-        styleId: 'edu_playful',
-        slideCount: 14,
-        isPremium: false,
-        colors: ['#fef9c3', '#facc15', '#4f46e5']
-    }
 ];
+
+const CATEGORY_THUMBNAILS: Record<string, string> = {
+    'minimal': '◻️',
+    'business': '📊',
+    'technology': '🚀',
+    'creative': '🎨',
+    'education': '📚',
+    'marketing': '📢',
+};
 
 const CATEGORIES: { id: TemplateCategory | 'all'; label: string; icon: React.ReactNode }[] = [
     { id: 'all', label: 'All Templates', icon: <Sparkles size={16} /> },
@@ -164,15 +109,54 @@ const CATEGORIES: { id: TemplateCategory | 'all'; label: string; icon: React.Rea
     { id: 'marketing', label: 'Marketing', icon: <Megaphone size={16} /> },
 ];
 
+/**
+ * Convert StylePreset from API to Template format
+ */
+function presetToTemplate(preset: StylePreset): Template {
+    return {
+        id: preset.id,
+        name: preset.name,
+        description: preset.description,
+        thumbnail: preset.thumbnail || CATEGORY_THUMBNAILS[preset.category] || '✨',
+        category: preset.category as TemplateCategory,
+        styleId: preset.id,
+        slideCount: preset.slideCount || 10,
+        isPremium: preset.isPremium,
+        colors: preset.colors,
+    };
+}
+
 export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
     onSelect
 }) => {
+    const [templates, setTemplates] = useState<Template[]>(DEFAULT_TEMPLATES);
+    const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState<TemplateCategory | 'all'>('all');
     const [showPremiumOnly, setShowPremiumOnly] = useState(false);
 
+    // Fetch templates from API on mount
+    useEffect(() => {
+        const fetchTemplates = async () => {
+            setIsLoading(true);
+            try {
+                const presets = await stylesApi.getPresets();
+                if (presets.length > 0) {
+                    setTemplates(presets.map(presetToTemplate));
+                }
+                // If empty, keep default templates
+            } catch (error) {
+                console.error('Failed to fetch templates, using defaults:', error);
+                // Keep default templates on error
+            }
+            setIsLoading(false);
+        };
+
+        fetchTemplates();
+    }, []);
+
     const filteredTemplates = useMemo(() => {
-        return TEMPLATES.filter(template => {
+        return templates.filter(template => {
             const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 template.description.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesCategory = activeCategory === 'all' || template.category === activeCategory;
@@ -180,7 +164,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
 
             return matchesSearch && matchesCategory && matchesPremium;
         });
-    }, [searchQuery, activeCategory, showPremiumOnly]);
+    }, [templates, searchQuery, activeCategory, showPremiumOnly]);
 
     return (
         <div className="template-library">
@@ -229,62 +213,72 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                 ))}
             </div>
 
-            {/* Template Grid */}
-            <div className="template-grid">
-                {filteredTemplates.map(template => (
-                    <div
-                        key={template.id}
-                        className="template-card"
-                        onClick={() => onSelect?.(template)}
-                    >
-                        {template.isPremium && (
-                            <div className="premium-badge">
-                                <Crown size={12} />
-                                PRO
-                            </div>
-                        )}
-
-                        <div
-                            className="template-preview"
-                            style={{
-                                background: `linear-gradient(135deg, ${template.colors[0]} 0%, ${template.colors[1]} 50%, ${template.colors[2]} 100%)`
-                            }}
-                        >
-                            <span className="preview-emoji">{template.thumbnail}</span>
-                        </div>
-
-                        <div className="template-info">
-                            <h3>{template.name}</h3>
-                            <p>{template.description}</p>
-
-                            <div className="template-meta">
-                                <span className="slide-count">{template.slideCount} slides</span>
-                                <div className="color-dots">
-                                    {template.colors.map((color, i) => (
-                                        <span
-                                            key={i}
-                                            className="color-dot"
-                                            style={{ background: color }}
-                                        />
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-
-                        <button className="use-template-btn">
-                            <Check size={16} />
-                            Use Template
-                        </button>
-                    </div>
-                ))}
-            </div>
-
-            {filteredTemplates.length === 0 && (
-                <div className="no-results">
-                    <Sparkles size={48} />
-                    <h3>No templates found</h3>
-                    <p>Try adjusting your search or filters</p>
+            {/* Loading State */}
+            {isLoading ? (
+                <div className="loading-state">
+                    <Loader2 size={32} className="spin" />
+                    <p>Loading templates...</p>
                 </div>
+            ) : (
+                <>
+                    {/* Template Grid */}
+                    <div className="template-grid">
+                        {filteredTemplates.map(template => (
+                            <div
+                                key={template.id}
+                                className="template-card"
+                                onClick={() => onSelect?.(template)}
+                            >
+                                {template.isPremium && (
+                                    <div className="premium-badge">
+                                        <Crown size={12} />
+                                        PRO
+                                    </div>
+                                )}
+
+                                <div
+                                    className="template-preview"
+                                    style={{
+                                        background: `linear-gradient(135deg, ${template.colors[0]} 0%, ${template.colors[1]} 50%, ${template.colors[2]} 100%)`
+                                    }}
+                                >
+                                    <span className="preview-emoji">{template.thumbnail}</span>
+                                </div>
+
+                                <div className="template-info">
+                                    <h3>{template.name}</h3>
+                                    <p>{template.description}</p>
+
+                                    <div className="template-meta">
+                                        <span className="slide-count">{template.slideCount} slides</span>
+                                        <div className="color-dots">
+                                            {template.colors.map((color, i) => (
+                                                <span
+                                                    key={i}
+                                                    className="color-dot"
+                                                    style={{ background: color }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <button className="use-template-btn">
+                                    <Check size={16} />
+                                    Use Template
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {filteredTemplates.length === 0 && (
+                        <div className="no-results">
+                            <Sparkles size={48} />
+                            <h3>No templates found</h3>
+                            <p>Try adjusting your search or filters</p>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

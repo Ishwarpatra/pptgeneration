@@ -1,6 +1,8 @@
 // Visual Synthesis API Service
 // Handles communication with the backend image generation service
 
+import { API_ENDPOINTS, apiFetch, API_BASE_URL } from '../../config/api';
+
 export interface ImageStyle {
     id: string;
     name: string;
@@ -41,34 +43,22 @@ export interface SlideImageAnalysis {
     recommended_count: number;
 }
 
-const API_BASE = 'http://localhost:8000';
-
 export const visualApi = {
     /**
-     * Get available image styles
+     * Get available image styles from the backend
      */
     async getStyles(): Promise<{ styles: ImageStyle[] }> {
-        const response = await fetch(`${API_BASE}/api/visual/styles`);
-        if (!response.ok) throw new Error('Failed to fetch styles');
-        return response.json();
+        return apiFetch(API_ENDPOINTS.visual.styles);
     },
 
     /**
      * Generate an AI image
      */
     async generateImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
-        const response = await fetch(`${API_BASE}/api/visual/generate`, {
+        return apiFetch(API_ENDPOINTS.visual.generate, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(request),
         });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Image generation failed');
-        }
-
-        return response.json();
     },
 
     /**
@@ -88,7 +78,7 @@ export const visualApi = {
             params.append('style_preference', stylePreference);
         }
 
-        const response = await fetch(`${API_BASE}/api/visual/suggest?${params}`, {
+        const response = await fetch(`${API_ENDPOINTS.visual.suggest}?${params}`, {
             method: 'POST',
         });
 
@@ -100,7 +90,7 @@ export const visualApi = {
      * Get the URL for a generated image
      */
     getImageUrl(filename: string): string {
-        return `${API_BASE}/api/visual/image/${filename}`;
+        return API_ENDPOINTS.visual.image(filename);
     },
 
     /**
@@ -112,10 +102,11 @@ export const visualApi = {
         available_styles: number;
         available_ratios: number;
     }> {
-        const response = await fetch(`${API_BASE}/api/visual/provider`);
-        if (!response.ok) throw new Error('Failed to fetch provider info');
-        return response.json();
+        return apiFetch(API_ENDPOINTS.visual.provider);
     }
 };
+
+// Export the API base for direct access if needed
+export { API_BASE_URL };
 
 export default visualApi;

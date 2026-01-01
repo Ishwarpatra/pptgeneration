@@ -31,8 +31,10 @@ class FullGenerationRequest(BaseModel):
 class GenerationResponse(BaseModel):
     """Response with generation results."""
     success: bool
+    presentation_id: Optional[str] = None
     file_path: Optional[str] = None
     download_url: Optional[str] = None
+    slide_count: Optional[int] = None
     outline: Optional[dict] = None
     error: Optional[str] = None
 
@@ -48,6 +50,8 @@ async def generate_presentation(request: FullGenerationRequest):
     
     Returns the file path and download URL.
     """
+    import uuid
+    
     try:
         # Step 1: Content Expansion
         logger.info(f"Generating presentation for topic: {request.topic}")
@@ -70,10 +74,16 @@ async def generate_presentation(request: FullGenerationRequest):
         compiler = PPTXCompiler(style=style)
         file_path = compiler.compile(outline)
         
+        # Generate ID for the presentation
+        presentation_id = str(uuid.uuid4())
+        slide_count = len(outline.slides)
+        
         return GenerationResponse(
             success=True,
+            presentation_id=presentation_id,
             file_path=file_path,
             download_url=f"/api/generate/download/{Path(file_path).name}",
+            slide_count=slide_count,
             outline=outline.model_dump(),
         )
         

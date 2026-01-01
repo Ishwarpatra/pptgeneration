@@ -9,7 +9,7 @@ import {
     RefreshCw,
     Palette
 } from 'lucide-react';
-import { visualApi } from './visualApi';
+import { visualApi, type ImageStyle } from './visualApi';
 import type { ImageSuggestion } from './visualApi';
 import './ImageGenerator.css';
 
@@ -20,7 +20,8 @@ interface ImageGeneratorProps {
     onClose: () => void;
 }
 
-const IMAGE_STYLES = [
+// Default styles to use when API is unavailable
+const DEFAULT_IMAGE_STYLES: { id: string; name: string; emoji: string }[] = [
     { id: 'corporate', name: 'Corporate', emoji: '💼' },
     { id: 'photorealistic', name: 'Photo', emoji: '📷' },
     { id: 'illustration', name: 'Illustration', emoji: '🎨' },
@@ -41,16 +42,40 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({
     const [selectedStyle, setSelectedStyle] = useState('corporate');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+    const [isLoadingStyles, setIsLoadingStyles] = useState(true);
     const [suggestions, setSuggestions] = useState<ImageSuggestion[]>([]);
     const [generatedImage, setGeneratedImage] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [providerInfo, setProviderInfo] = useState<string>('');
+    const [imageStyles, setImageStyles] = useState(DEFAULT_IMAGE_STYLES);
 
-    // Load suggestions on mount
+    // Load styles and suggestions on mount
     useEffect(() => {
+        loadStyles();
         loadSuggestions();
         loadProviderInfo();
     }, [slideTitle, slideContent]);
+
+    const loadStyles = async () => {
+        setIsLoadingStyles(true);
+        try {
+            const response = await visualApi.getStyles();
+            if (response.styles && response.styles.length > 0) {
+                // Convert API styles to our format
+                const fetchedStyles = response.styles.map((s: ImageStyle) => ({
+                    id: s.id,
+                    name: s.name,
+                    emoji: getStyleEmoji(s.id),
+                }));
+                setImageStyles(fetchedStyles);
+            }
+            // If empty, keep defaults
+        } catch (err) {
+            console.error('Failed to load styles, using defaults:', err);
+            // Keep default styles on error
+        }
+        setIsLoadingStyles(false);
+    };
 
     const loadSuggestions = async () => {
         if (!slideTitle && !slideContent) return;
@@ -102,8 +127,9 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({
             } else {
                 setError(result.error || 'Generation failed');
             }
-        } catch (err: any) {
-            setError(err.message || 'Failed to generate image');
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Failed to generate image';
+            setError(errorMessage);
         }
 
         setIsGenerating(false);
@@ -154,7 +180,15 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({
                         </div>
 
                         {/* AI Suggestions */}
-                        {suggestions.length > 0 && (
+                        {isLoadingSuggestions && (
+                            <div className="ig-section">
+                                <label>
+                                    <Loader2 size={14} className="spin" />
+                                    Loading suggestions...
+                                </label>
+                            </div>
+                        )}
+                        {!isLoadingSuggestions && suggestions.length > 0 && (
                             <div className="ig-section">
                                 <label>
                                     <Sparkles size={14} />
@@ -183,9 +217,10 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({
                             <label>
                                 <Palette size={14} />
                                 Image Style
+                                {isLoadingStyles && <Loader2 size={12} className="spin" style={{ marginLeft: 8 }} />}
                             </label>
                             <div className="ig-styles">
-                                {IMAGE_STYLES.map(style => (
+                                {imageStyles.map(style => (
                                     <button
                                         key={style.id}
                                         className={`style-btn ${selectedStyle === style.id ? 'active' : ''}`}
@@ -260,5 +295,24 @@ export const ImageGenerator: React.FC<ImageGeneratorProps> = ({
         </div>
     );
 };
+
+/**
+ * Get emoji for style ID
+ */
+function getStyleEmoji(styleId: string): string {
+    const emojiMap: Record<string, string> = {
+        'corporate': '💼',
+        'photorealistic': '📷',
+        'illustration': '🎨',
+        'flat_design': '◻️',
+        'isometric': '🔷',
+        'minimalist': '⚪',
+        'abstract': '🌀',
+        'infographic': '📊',
+        'watercolor': '🖌️',
+        'icon': '🔷',
+    };
+    return emojiMap[styleId] || '✨';
+}
 
 export default ImageGenerator;

@@ -114,34 +114,20 @@ class VisualSynthesisEngine:
         request: ImageGenerationRequest, 
         enhanced_prompt: str
     ) -> ImageGenerationResponse:
-        """Generate image using Google Gemini (Imagen 3)"""
+        """Generate image using Google Gemini"""
         async with httpx.AsyncClient(timeout=120.0) as client:
-            # Gemini Imagen API endpoint
-            # Using the Vertex AI / Gemini API for image generation
-            
-            # Map aspect ratio to Gemini format
-            aspect_ratio_map = {
-                AspectRatio.WIDESCREEN: "16:9",
-                AspectRatio.STANDARD: "4:3",
-                AspectRatio.SQUARE: "1:1",
-                AspectRatio.PORTRAIT: "9:16"
-            }
-            aspect_ratio = aspect_ratio_map.get(request.aspect_ratio, "16:9")
-            
-            # Use Gemini's generateContent with imagen model
-            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:predict?key={self.gemini_api_key}"
+            # Use Gemini 2.0 Flash for image generation
+            # This model supports native image output
+            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={self.gemini_api_key}"
             
             payload = {
-                "instances": [
-                    {
-                        "prompt": enhanced_prompt
-                    }
-                ],
-                "parameters": {
-                    "sampleCount": 1,
-                    "aspectRatio": aspect_ratio,
-                    "personGeneration": "allow_adult",
-                    "safetyFilterLevel": "block_few"
+                "contents": [{
+                    "parts": [{
+                        "text": f"Generate a professional image for a presentation slide. The image should show: {enhanced_prompt}. Create a high-quality, visually appealing image suitable for business presentations."
+                    }]
+                }],
+                "generationConfig": {
+                    "responseMimeType": "text/plain"
                 }
             }
             
@@ -156,27 +142,30 @@ class VisualSynthesisEngine:
             if response.status_code != 200:
                 error_data = response.json() if response.text else {}
                 error_msg = error_data.get('error', {}).get('message', response.text or 'Unknown error')
-                
-                # Try alternative Gemini endpoint
-                return await self._generate_with_gemini_alt(request, enhanced_prompt)
+                raise Exception(f"Gemini API error: {error_msg}")
             
             data = response.json()
             
-            # Extract image from response
-            if "predictions" in data and len(data["predictions"]) > 0:
-                image_b64 = data["predictions"][0].get("bytesBase64Encoded")
-                if image_b64:
-                    local_path = self._save_base64_image(image_b64)
-                    
-                    return ImageGenerationResponse(
-                        success=True,
-                        image_path=str(local_path),
-                        prompt_used=enhanced_prompt,
-                        style=request.style,
-                        credits_used=1
-                    )
+            # Check if we got an image in the response
+            candidates = data.get("candidates", [])
+            if candidates:
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                for part in parts:
+                    if "inlineData" in part:
+                        image_b64 = part["inlineData"].get("data")
+                        if image_b64:
+                            local_path = self._save_base64_image(image_b64)
+                            return ImageGenerationResponse(
+                                success=True,
+                                image_path=str(local_path),
+                                prompt_used=enhanced_prompt,
+                                style=request.style,
+                                credits_used=1
+                            )
             
-            raise Exception("No image generated in response")
+            # If no image generated, try the experimental image generation model
+            return await self._generate_with_gemini_alt(request, enhanced_prompt)
     
     async def _generate_with_gemini_alt(
         self,

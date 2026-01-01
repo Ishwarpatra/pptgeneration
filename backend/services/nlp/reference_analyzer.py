@@ -5,6 +5,7 @@ Combines XML parsing with visual analysis for comprehensive style extraction.
 import io
 import os
 import tempfile
+import logging
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
@@ -15,6 +16,9 @@ from pptx import Presentation
 from pptx.util import Emu, Pt
 from pptx.enum.shapes import MSO_SHAPE_TYPE
 from pptx.dml.color import RGBColor
+
+# Configure logging for this module
+logger = logging.getLogger(__name__)
 
 from services.style.style_gene import (
     StyleGene,
@@ -101,7 +105,7 @@ class ReferenceAnalyzer:
         """Extract colors from a single shape."""
         colors = []
         
-        # Try to get fill color
+        # Extract fill color
         try:
             if hasattr(shape, 'fill') and shape.fill is not None:
                 fill = shape.fill
@@ -115,10 +119,12 @@ class ReferenceAnalyzer:
                             rgb=(rgb[0], rgb[1], rgb[2]),
                             context="fill"
                         ))
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract fill color from shape: {e}")
+        except (IndexError, ValueError) as e:
+            logger.warning(f"Invalid fill color data in shape: {e}")
         
-        # Try to get text colors
+        # Extract text colors
         try:
             if hasattr(shape, 'text_frame'):
                 for paragraph in shape.text_frame.paragraphs:
@@ -132,8 +138,10 @@ class ReferenceAnalyzer:
                                     rgb=(rgb[0], rgb[1], rgb[2]),
                                     context="text"
                                 ))
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract text color from shape: {e}")
+        except (IndexError, ValueError) as e:
+            logger.warning(f"Invalid text color data in shape: {e}")
         
         return colors
 
@@ -147,16 +155,23 @@ class ReferenceAnalyzer:
                     for run in paragraph.runs:
                         if hasattr(run.font, 'name') and run.font.name:
                             size = 0.0
-                            if hasattr(run.font, 'size') and run.font.size:
-                                size = run.font.size.pt if run.font.size else 0.0
+                            try:
+                                if hasattr(run.font, 'size') and run.font.size:
+                                    size = run.font.size.pt if run.font.size else 0.0
+                            except (AttributeError, TypeError) as e:
+                                logger.debug(f"Could not read font size: {e}")
+                                size = 0.0  # Default to 0 when size cannot be read
                             
                             fonts.append(ExtractedFont(
                                 name=run.font.name,
                                 is_heading=is_title or size > 24,
                                 avg_size_pt=size
                             ))
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            logger.debug(f"Could not extract fonts from shape: {e}")
+        except Exception as e:
+            # Catch-all for unexpected errors, but log them
+            logger.error(f"Unexpected error extracting fonts from shape: {type(e).__name__}: {e}")
         
         return fonts
 

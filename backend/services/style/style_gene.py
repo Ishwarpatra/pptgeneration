@@ -1,12 +1,27 @@
 """
 Style Gene Data Structures.
 Parametric representation of visual themes for "breeding" and mixing.
+
+Uses the 'colormath' library for accurate, battle-tested color space conversions.
 """
 from dataclasses import dataclass, field
 from typing import List, Tuple, Optional
 from enum import Enum
-import colorsys
-import math
+import logging
+
+# Import colormath for professional color space conversions
+try:
+    from colormath.color_objects import sRGBColor, LabColor
+    from colormath.color_conversions import convert_color
+    COLORMATH_AVAILABLE = True
+except ImportError:
+    COLORMATH_AVAILABLE = False
+    logging.warning(
+        "colormath library not installed. Install with 'pip install colormath' "
+        "for accurate color space conversions. Falling back to approximation."
+    )
+
+logger = logging.getLogger(__name__)
 
 
 class FontWeight(str, Enum):
@@ -45,6 +60,9 @@ class LABColor:
     """
     Color in CIELAB color space.
     LAB provides perceptually uniform color interpolation.
+    
+    Uses 'colormath' library when available for accurate conversions,
+    with a fallback approximation for environments without it.
     """
     L: float  # Lightness (0-100)
     a: float  # Green-Red axis (-128 to 127)
@@ -52,10 +70,22 @@ class LABColor:
 
     @classmethod
     def from_hex(cls, hex_color: str) -> "LABColor":
-        """Convert hex color to LAB."""
+        """Convert hex color to LAB using colormath library."""
         hex_color = hex_color.lstrip("#")
         r, g, b = tuple(int(hex_color[i:i+2], 16) / 255.0 for i in (0, 2, 4))
         
+        if COLORMATH_AVAILABLE:
+            # Use colormath for accurate conversion
+            rgb = sRGBColor(r, g, b)
+            lab = convert_color(rgb, LabColor)
+            return cls(L=lab.lab_l, a=lab.lab_a, b=lab.lab_b)
+        else:
+            # Fallback: Approximate conversion
+            return cls._from_hex_fallback(r, g, b)
+    
+    @classmethod
+    def _from_hex_fallback(cls, r: float, g: float, b: float) -> "LABColor":
+        """Fallback RGB to LAB conversion when colormath is unavailable."""
         # RGB to XYZ (D65 illuminant)
         def gamma_correct(c):
             return ((c + 0.055) / 1.055) ** 2.4 if c > 0.04045 else c / 12.92
@@ -78,7 +108,22 @@ class LABColor:
         return cls(L=L, a=a, b=b_val)
 
     def to_hex(self) -> str:
-        """Convert LAB to hex color."""
+        """Convert LAB to hex color using colormath library."""
+        if COLORMATH_AVAILABLE:
+            # Use colormath for accurate conversion
+            lab = LabColor(self.L, self.a, self.b)
+            rgb = convert_color(lab, sRGBColor)
+            # Clamp values to valid range
+            r = max(0, min(1, rgb.rgb_r))
+            g = max(0, min(1, rgb.rgb_g))
+            b = max(0, min(1, rgb.rgb_b))
+            return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+        else:
+            # Fallback conversion
+            return self._to_hex_fallback()
+    
+    def _to_hex_fallback(self) -> str:
+        """Fallback LAB to hex conversion when colormath is unavailable."""
         # LAB to XYZ
         def f_inv(t):
             return t ** 3 if t > 0.206893 else (t - 16/116) / 7.787
